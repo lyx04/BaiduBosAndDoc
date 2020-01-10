@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>bce-bos-uploader simple demo</title>
+    <!--[if lt IE 8]>
+    <script src="https://unpkg.com/json3@3.3.2/lib/json3.min.js"></script><![endif]-->
+    <!--[if lt IE 9]>
+    <script src="https://unpkg.com/js-polyfills@0.1.42/es5.js"></script><![endif]-->
+    <!--[if lt IE 10]>
+    <script src="https://unpkg.com/mOxie@1.5.7/bin/js/moxie.min.js"></script><![endif]-->
+    <script src="https://unpkg.com/jquery@3.3.1/dist/jquery.min.js"></script>
+    <script src="node_modules/@baiducloud/bos-uploader/dist/bce-bos-uploader.bundle.js"></script>
+    <script src="http://static.bcedocument.com/reader/v2/doc_reader_v2.js"></script>
+
+</head>
+
+<body>
+    <div id="reader"></div>
+    <input type="file" id="file">
+    <button type="submit">开始上传</button>
+    <script>
+        $(function () {
+            var BOS_ENDPOINT = "地区地址", bucket = "bos中的bucket";
+            var config = {
+                credentials: {
+                    ak: "ak",           //您的AK
+                    sk: "sk"//您的SK
+                }
+            }
+            // console.log(baidubce.sdk.DocClient)
+            var doc = new baidubce.sdk.DocClient.Document(config)
+            var t, index = 0;
+            $("#file").change(function (ev) {
+                var file = ev.target.files[0]; // 获取要上传的文件
+                var data = {
+                    'title': file.name,
+                    'format': "pptx",
+                }
+                doc.register(data).then(function (e) {
+                    var docrespon = e.body
+                    var key = baidubce.utils.uuid();
+                    var ext = key.split(/\./g).pop();
+                    var mimeType = baidubce.sdk.MimeType.guess(ext);
+                    var options = {
+                        'Content-Type': mimeType,
+                        "Content-Disposition": "attachment;filename=" + encodeURI(file.name),
+                        "x-bce-documentid": docrespon.documentId
+                    }
+                    var bosconfig = {
+                        endpoint: docrespon.bosEndpoint,
+                        credentials: {
+                            ak: "ak",           //您的AK
+                            sk: "sk"//您的SK
+                        }
+                    }
+                    var client = new baidubce.sdk.BosClient(bosconfig)
+                    client.putObjectFromBlob(docrespon.bucket, docrespon.object, file, options).then(done).catch(fail);//自主上传，只有一个进度事件可以监听，
+                    function done(e) {
+                        doc.publish(docrespon.documentId).then(function (e) {
+                            option.docId = docrespon.documentId
+                            t = setTimeout(move, 3000)
+                        })
+                    }
+                    function move() {
+                        clearTimeout(t)
+                        doc.get(docrespon.documentId).then(function (e) {
+                            if (e.body.status == "PUBLISHED") {
+                                new Document('reader', option);
+                            } else {
+                                t = setTimeout(move(), 3000)
+                            }
+                        })
+                    }
+                    function fail(e) {
+                        console.log(e)
+                    }
+                }).catch(e => console.log(e))
+            })
+
+
+
+
+            // var readid = doc.read("doc-jmpkbmg3fwttckd")
+            var option = {
+                docId: 'doc-ka8qqgvuf7yt5gn',
+                token: 'TOKEN',
+                host: 'BCEDOC',
+                serverHost: "地区地址",
+                width: 600, //文档容器宽度
+                zoom: false,              //是否显示放大缩小按钮
+                zoomStepWidth: 200,
+                // pn: 3,  //定位到第几页，可选
+                ready: function (handler) {  // 设置字体大小和颜色, 背景颜色（可设置白天黑夜模式）
+                    handler.setFontSize(1);
+                    handler.setBackgroundColor('#000');
+                    handler.setFontColor('#fff');
+                },
+                flip: function (data) {    // 翻页时回调函数, 可供客户进行统计等
+                    console.log(data.pn);
+                },
+                fontSize: 'big',
+                toolbarConf: {
+                    page: true, //上下翻页箭头图标
+                    pagenum: true, //几分之几页
+                    full: false, //是否显示全屏图标,点击后全屏
+                    copy: true, //是否可以复制文档内容
+                    position: 'center',// 设置 toolbar中翻页和放大图标的位置(值有left/center)
+                } //文档顶部工具条配置对象,必选
+            };
+            new Document('reader', option);
+
+
+            // 工具集成的上传
+            // var uploader = new baidubce.bos.Uploader({
+            //     browse_button: '#file',
+            //     bos_bucket: 'Bos中的bucket',
+            //     bos_endpoint: '地区地址',
+            //     bos_ak: 'ak',
+            //     bos_sk: 'sk',
+            //     max_file_size: '1Gb',
+            //     init: {
+            //         FileUploaded: function (_, file, info) {
+            //             var bucket = info.body.bucket;
+            //             var object = info.body.object;
+            //             var d = doc.createFromBos(bucket, object, "liangyuxuan")
+            //             d.then(function (e) {
+            //                 var docId = e.body.documentId
+            //                 option.docId = docId
+            //                 // doc.get("doc-ka8k0wvxm9djzf4").then(e=>console.log(e))//当返回值e中的status是"PUBLISHED"时才可以进行new Document('reader', option);
+
+            //             })
+
+            //             // var url = 'https://bj.bcebos.com/' + bucket + '/' + object;
+            //             // $(document.body).append($('<div><a href="' + url + '">' + url + '</a></div>'));
+            //         },
+            //         UploadComplete: function () {
+            //             $(document.body).append('<div>上传结束！</div>');
+            //         }
+            //     }
+            // });
+            // $('button[type=submit]').click(function () {
+            //     uploader.start();
+            //     return false;
+            // });
+
+        })
+
+    </script>
+</body>
+
+</html>
